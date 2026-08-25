@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VÍDEOCREATOR</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;background:#10131a;color:#fff}.app{max-width:760px;margin:auto;padding:24px}h1{margin-bottom:4px}.subtitle{color:#aab2c0}.card{background:#1a1f2b;padding:18px;border-radius:16px;margin-top:16px}textarea{width:100%;box-sizing:border-box;min-height:110px;border-radius:10px;padding:12px;border:0;font-size:16px}button{margin-top:12px;width:100%;padding:15px;border:0;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer}.agents{display:grid;grid-template-columns:1fr 1fr;gap:8px}.agent{padding:12px;background:#252c3a;border-radius:10px}.history p{padding:10px;background:#252c3a;border-radius:8px}
+  </style>
+</head>
+<body><main class="app">
+<h1>🎬 VÍDEOCREATOR</h1><p class="subtitle">Sua central de agentes para criar Shorts</p>
+<section class="card"><h2>💬 O que você quer criar?</h2><textarea id="command" placeholder="Ex.: Crie 5 Shorts de curiosidades sobre o espaço e prepare para publicação."></textarea><button onclick="executeTask()">🚀 EXECUTAR AGENTES</button><p id="status"></p></section>
+<section class="card"><h2>🤖 Agentes da V1</h2><div class="agents"><div class="agent">🔎 Pesquisa</div><div class="agent">✍️ Roteiro</div><div class="agent">🎙️ Narração</div><div class="agent">🎬 Vídeo</div><div class="agent">📅 Publicação</div><div class="agent">📊 Análise</div></div></section>
+<section class="card history"><h2>📋 Histórico</h2><div id="history"><p>Nenhuma tarefa executada ainda.</p></div></section>
+</main><script>function executeTask(){const c=document.getElementById('command').value.trim();if(!c){document.getElementById('status').textContent='Digite um comando para começar.';return}document.getElementById('status').textContent='🤖 Tarefa registrada. A integração dos agentes será a próxima etapa.';document.getElementById('history').innerHTML='<p>✅ '+c.replace(/[<>]/g,'')+'</p>';}</script></body></html>
