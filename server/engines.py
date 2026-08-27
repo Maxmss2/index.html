@@ -12,11 +12,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-ENGINE_ROOT = Path(os.getenv("AUTOMATED_VIDEO_GENERATOR_PATH", "")).expanduser()
+ENGINE_ROOT_RAW = os.getenv("AUTOMATED_VIDEO_GENERATOR_PATH", "").strip()
+ENGINE_ROOT = Path(ENGINE_ROOT_RAW).expanduser() if ENGINE_ROOT_RAW else None
 
 
 def engine_status() -> dict[str, Any]:
-    configured = bool(str(ENGINE_ROOT)) and ENGINE_ROOT.exists()
+    configured = ENGINE_ROOT is not None and ENGINE_ROOT.exists()
     return {
         "id": "automated-video-generator",
         "name": "Automated Video Generator",
@@ -45,7 +46,7 @@ def run_video_engine(job_id: str, command: str) -> dict[str, Any]:
     instalado separadamente e apontado por AUTOMATED_VIDEO_GENERATOR_PATH.
     """
     status = engine_status()
-    if not status["configured"]:
+    if not status["configured"] or ENGINE_ROOT is None:
         return {
             "status": "needs_setup",
             "message": "Motor de vídeo ainda não instalado neste computador/servidor.",
