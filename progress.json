@@ -1,16 +1,16 @@
 {
   "project": "VÍDEOCREATOR",
   "updated_at": "2026-08-27",
-  "overall_progress": 42,
-  "current_stage": "Integração de motores open-source",
+  "overall_progress": 48,
+  "current_stage": "Integração do primeiro motor open-source",
   "stages": [
     {"id": 1, "name": "Planejamento e arquitetura", "progress": 100, "status": "completed"},
     {"id": 2, "name": "Interface e estrutura base", "progress": 100, "status": "completed"},
-    {"id": 3, "name": "Integração de motores open-source", "progress": 65, "status": "in_progress"},
-    {"id": 4, "name": "Geração real de vídeo", "progress": 0, "status": "pending"},
+    {"id": 3, "name": "Integração de motores open-source", "progress": 85, "status": "in_progress"},
+    {"id": 4, "name": "Geração real de vídeo", "progress": 10, "status": "in_progress"},
     {"id": 5, "name": "Publicação nas redes", "progress": 0, "status": "pending"},
     {"id": 6, "name": "Análise e melhorias", "progress": 0, "status": "pending"}
   ],
-  "last_completed": "Estrutura inicial do motor e estratégia Frankenstein",
-  "next_step": "Avaliar e integrar componentes reutilizáveis para geração automática de vídeo"
+  "last_completed": "Adaptador inicial para orquestrar o Automated Video Generator",
+  "next_step": "Instalar e testar o motor open-source em um ambiente de execução e validar o primeiro MP4"
 }
