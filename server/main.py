@@ -1,14 +1,18 @@
 """VÍDEOCREATOR Engine - núcleo independente para automação de vídeos."""
 from datetime import datetime, timezone
+from pathlib import Path
+import json
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="VÍDEOCREATOR Engine", version="0.2.0")
+app = FastAPI(title="VÍDEOCREATOR Engine", version="0.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 jobs: dict[str, dict] = {}
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROGRESS_FILE = PROJECT_ROOT / "progress.json"
 
 class Command(BaseModel):
     command: str = Field(min_length=3, max_length=4000)
@@ -16,7 +20,14 @@ class Command(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "online", "engine": "VÍDEOCREATOR Engine", "version": "0.2.0"}
+    return {"status": "online", "engine": "VÍDEOCREATOR Engine", "version": "0.3.0"}
+
+@app.get("/progress")
+def project_progress():
+    """Retorna o progresso real registrado do desenvolvimento do projeto."""
+    if not PROGRESS_FILE.exists():
+        raise HTTPException(status_code=404, detail="Progresso do projeto não configurado")
+    return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
 
 @app.post("/jobs")
 def create_job(data: Command):
