@@ -1,0 +1,23 @@
+name: VÍDEOCREATOR - Teste do Núcleo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v6
+      - name: Preparar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Instalar dependências
+        run: pip install -r server/requirements.txt
+      - name: Testar núcleo
+        run: python server/smoke_test.py
