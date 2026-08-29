@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from engines import engine_status, run_video_engine
 
-app = FastAPI(title="VÍDEOCREATOR Engine", version="0.4.0")
+app = FastAPI(title="VÍDEOCREATOR Engine", version="0.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 jobs: dict[str, dict] = {}
@@ -21,7 +21,7 @@ class Command(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "online", "engine": "VÍDEOCREATOR Engine", "version": "0.4.0"}
+    return {"status": "online", "engine": "VÍDEOCREATOR Engine", "version": "0.5.0"}
 
 @app.get("/progress")
 def project_progress():
@@ -53,31 +53,42 @@ def create_job(data: Command):
     jobs[job_id] = {"id": job_id, "command": data.command, "status": "queued", "created_at": datetime.now(timezone.utc).isoformat(), "videos": videos}
     return {"job_id": job_id, "status": "queued", "videos": videos}
 
-def execute_job(job_id: str):
+def execute_job(job_id: str, dry_run: bool = False):
     job = jobs[job_id]
-    job["status"] = "processing"
+    job["status"] = "validating" if dry_run else "processing"
+    job["dry_run"] = dry_run
     for video in job["videos"]:
-        video["status"] = "processing"
+        video["status"] = "validating" if dry_run else "processing"
         video["stages"]["voice"] = "processing"
         video["stages"]["media"] = "processing"
-        result = run_video_engine(video["id"], video["script"])
+        result = run_video_engine(video["id"], video["script"], dry_run=dry_run)
         video["engine_result"] = result
         video["status"] = result["status"]
         if result["status"] == "completed":
             for stage in ("voice", "media", "captions", "render"):
                 video["stages"][stage] = "completed"
+        elif result["status"] == "validated":
+            for stage in ("voice", "media", "captions"):
+                video["stages"][stage] = "validated"
+            video["stages"]["render"] = "skipped_dry_run"
         elif result["status"] == "needs_setup":
             video["status"] = "waiting_for_engine"
-    job["status"] = "completed" if all(v["status"] == "completed" for v in job["videos"]) else "waiting_or_failed"
+    success_states = {"completed"} if not dry_run else {"validated"}
+    job["status"] = "validated" if all(v["status"] in success_states for v in job["videos"]) else "waiting_or_failed"
 
 @app.post("/jobs/{job_id}/run")
-def run_job(job_id: str, background_tasks: BackgroundTasks):
+def run_job(job_id: str, background_tasks: BackgroundTasks, dry_run: bool = False):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job não encontrado")
     if not engine_status()["configured"]:
         return {"job_id": job_id, "status": "needs_setup", "engine": engine_status()}
-    background_tasks.add_task(execute_job, job_id)
-    return {"job_id": job_id, "status": "started", "engine": "automated-video-generator"}
+    background_tasks.add_task(execute_job, job_id, dry_run)
+    return {
+        "job_id": job_id,
+        "status": "validation_started" if dry_run else "started",
+        "mode": "dry_run" if dry_run else "render",
+        "engine": "automated-video-generator",
+    }
 
 @app.get("/jobs/{job_id}")
 def get_job(job_id: str):
@@ -90,5 +101,6 @@ def get_job(job_id: str):
 def architecture():
     return {
         "pipeline": ["research", "script", "voice", "media", "captions", "render", "publish"],
-        "note": "A VÍDEOCREATOR orquestra motores open-source por adaptadores intercambiáveis."
+        "note": "A VÍDEOCREATOR orquestra motores open-source por adaptadores intercambiáveis.",
+        "validation": "O modo dry-run valida o pipeline do motor antes da renderização final.",
     }
