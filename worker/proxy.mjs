@@ -11,109 +11,16 @@ const INPUT = path.join(ROOT, 'input', 'scripts', 'input-scripts.json');
 const OUTPUT = path.join(ROOT, 'output');
 const jobs = new Map();
 
-function json(res, code, body) {
-  const data = JSON.stringify(body);
-  res.writeHead(code, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data), 'access-control-allow-origin': '*' });
-  res.end(data);
-}
+const PAGE = `<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VÍDEOCREATOR</title><style>body{font-family:Arial;max-width:760px;margin:auto;padding:18px;background:#101522;color:#fff}section{background:#1b2435;padding:18px;border-radius:16px;margin:14px 0}input,textarea,select,button{width:100%;box-sizing:border-box;padding:13px;margin:7px 0;border-radius:10px;border:0;font-size:16px}button{background:#6ee7b7;font-weight:bold}textarea{min-height:180px}a{color:#6ee7b7}.ok{color:#6ee7b7}.err{color:#ff9b9b}</style><section><h1>🎬 VÍDEOCREATOR</h1><p>Geração real de vídeo no servidor.</p><p id="health">Verificando motor...</p></section><section><h2>Novo vídeo</h2><input id="title" value="Tecnologia e Inteligência Artificial"><textarea id="script">A inteligência artificial está transformando a tecnologia e mudando a forma como trabalhamos. Neste vídeo você vai conhecer algumas aplicações incríveis da IA e descobrir como essa tecnologia está avançando rapidamente.</textarea><select id="orientation"><option value="portrait">Retrato 9:16 — Shorts</option><option value="landscape">Paisagem 16:9 — YouTube</option></select><button onclick="create()">🎬 CRIAR VÍDEO AGORA</button><p id="status"></p></section><section id="result" style="display:none"><h2>Produção</h2><p id="progress"></p><div id="link"></div></section><script>
+async function check(){try{let r=await fetch('/api/health');let d=await r.json();document.getElementById('health').innerHTML='<span class="ok">● Motor online e pronto para gerar.</span>'}catch(e){document.getElementById('health').innerHTML='<span class="err">● Motor indisponível.</span>'}};
+async function create(){let title=document.getElementById('title').value.trim(),script=document.getElementById('script').value.trim(),orientation=document.getElementById('orientation').value,s=document.getElementById('status');if(script.length<10){s.textContent='Escreva um roteiro maior.';return}s.textContent='Enviando para o motor...';try{let r=await fetch('/api/jobs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title,script,orientation,language:'portuguese'})});let d=await r.json();if(!r.ok)throw Error(d.error||'Falha');document.getElementById('result').style.display='block';poll(d.data.jobId);s.textContent='Produção iniciada.'}catch(e){s.innerHTML='<span class="err">'+e.message+'</span>'}};
+async function poll(id){try{let r=await fetch('/api/jobs/'+id),j=await r.json();document.getElementById('progress').textContent=j.data?.message||j.message||j.status;if(j.data?.status==='completed'){document.getElementById('link').innerHTML='<a href="'+j.data.videoUrl+'" target="_blank">▶ ASSISTIR / ABRIR VÍDEO</a>';return}if(j.data?.status==='failed'){document.getElementById('link').innerHTML='<span class="err">'+(j.data.errorLog||j.data.message)+'</span>';return}setTimeout(()=>poll(id),3000)}catch(e){setTimeout(()=>poll(id),5000)}}check();</script>`;
 
-async function body(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-}
-
-function findMp4(dir) {
-  if (!fs.existsSync(dir)) return null;
-  const stack = [dir];
-  while (stack.length) {
-    const current = stack.pop();
-    for (const name of fs.readdirSync(current)) {
-      const full = path.join(current, name);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) stack.push(full);
-      else if (name.toLowerCase().endsWith('.mp4')) return full;
-    }
-  }
-  return null;
-}
-
-function startGeneration(job) {
-  fs.mkdirSync(path.dirname(INPUT), { recursive: true });
-  const payload = [{
-    id: job.id,
-    title: job.title,
-    script: job.script,
-    orientation: job.orientation,
-    language: job.language,
-    voice: job.voice,
-    showText: true,
-  }];
-  fs.writeFileSync(INPUT, JSON.stringify(payload, null, 2));
-  job.status = 'processing';
-  job.message = 'Gerando narração, mídia, legendas e vídeo...';
-  const child = spawn('npm', ['run', 'generate'], { cwd: ROOT, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-  job.pid = child.pid;
-  child.stdout.on('data', d => { job.log = (job.log || '') + d.toString().slice(-4000); });
-  child.stderr.on('data', d => { job.errorLog = (job.errorLog || '') + d.toString().slice(-4000); });
-  child.on('close', code => {
-    const file = findMp4(path.join(OUTPUT, job.id));
-    if (code === 0 && file) {
-      job.status = 'completed';
-      job.videoUrl = `/api/jobs/${job.id}/video`;
-      job.output = file;
-      job.message = 'Vídeo concluído.';
-    } else {
-      job.status = 'failed';
-      job.message = code === 0 ? 'O motor terminou sem localizar o MP4.' : `Motor terminou com código ${code}.`;
-    }
-  });
-}
-
-function api(req, res) {
-  if (req.method === 'GET' && req.url === '/api/health') return json(res, 200, { status: 'online', engine: 'Automated Video Generator', mode: 'remote-worker', no_api_key_tts: true });
-  if (req.method === 'POST' && req.url === '/api/jobs') {
-    return body(req).then(data => {
-      if (!data.title || !data.script || data.script.length < 10) return json(res, 400, { error: 'title e script são obrigatórios; script mínimo de 10 caracteres.' });
-      const id = randomUUID();
-      const job = { id, title: String(data.title).slice(0, 180), script: String(data.script).slice(0, 5000), orientation: data.orientation === 'landscape' ? 'landscape' : 'portrait', language: data.language || 'portuguese', voice: data.voice, status: 'queued', message: 'Tarefa recebida.' };
-      jobs.set(id, job);
-      startGeneration(job);
-      return json(res, 202, { success: true, data: { jobId: id, title: job.title, status: 'processing', statusUrl: `/api/jobs/${id}` } });
-    }).catch(() => json(res, 400, { error: 'JSON inválido.' }));
-  }
-  const match = req.url?.match(/^\/api\/jobs\/([^/]+)(?:\/(video))?$/);
-  if (match) {
-    const job = jobs.get(match[1]);
-    if (!job) return json(res, 404, { error: 'Job não encontrado neste Worker.' });
-    if (match[2] === 'video') {
-      if (!job.output || !fs.existsSync(job.output)) return json(res, 404, { error: 'Vídeo ainda não disponível.' });
-      res.writeHead(200, { 'content-type': 'video/mp4', 'access-control-allow-origin': '*', 'content-length': fs.statSync(job.output).size });
-      return fs.createReadStream(job.output).pipe(res);
-    }
-    return json(res, 200, { success: true, data: job });
-  }
-  return null;
-}
-
-const upstream = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(UPSTREAM_PORT)], { cwd: ROOT, env: process.env, stdio: 'inherit' });
-upstream.on('exit', code => console.error(`upstream exited: ${code}`));
-
-const server = http.createServer(async (req, res) => {
-  if (req.url?.startsWith('/api/')) {
-    const handled = api(req, res);
-    if (handled) return;
-    return;
-  }
-  try {
-    const target = `http://127.0.0.1:${UPSTREAM_PORT}${req.url}`;
-    const init = { method: req.method, headers: req.headers };
-    if (!['GET', 'HEAD'].includes(req.method)) init.body = req;
-    const response = await fetch(target, init);
-    res.writeHead(response.status, Object.fromEntries(response.headers));
-    if (response.body) response.body.pipeTo(new WritableStream({ write(chunk) { res.write(Buffer.from(chunk)); }, close() { res.end(); } })).catch(() => res.end());
-    else res.end();
-  } catch (e) { json(res, 502, { error: 'Upstream indisponível', detail: String(e) }); }
-});
-
-server.listen(PUBLIC_PORT, '0.0.0.0', () => console.log(`VÍDEOCREATOR worker API listening on 0.0.0.0:${PUBLIC_PORT}`));
+function json(res, code, body) { const data=JSON.stringify(body); res.writeHead(code, {'content-type':'application/json','content-length':Buffer.byteLength(data),'access-control-allow-origin':'*'}); res.end(data); }
+async function body(req){const chunks=[];for await(const c of req)chunks.push(c);return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}')}
+function findMp4(dir){if(!fs.existsSync(dir))return null;const stack=[dir];while(stack.length){const d=stack.pop();for(const n of fs.readdirSync(d)){const f=path.join(d,n),s=fs.statSync(f);if(s.isDirectory())stack.push(f);else if(n.toLowerCase().endsWith('.mp4'))return f}}return null}
+function startGeneration(job){fs.mkdirSync(path.dirname(INPUT),{recursive:true});fs.writeFileSync(INPUT,JSON.stringify([{id:job.id,title:job.title,script:job.script,orientation:job.orientation,language:job.language,voice:job.voice,showText:true}],null,2));job.status='processing';job.message='Gerando narração, mídia, legendas e vídeo...';const child=spawn('npm',['run','generate'],{cwd:ROOT,env:process.env,stdio:['ignore','pipe','pipe']});child.stdout.on('data',d=>job.log=(job.log||'')+d.toString().slice(-5000));child.stderr.on('data',d=>job.errorLog=(job.errorLog||'')+d.toString().slice(-5000));child.on('close',code=>{const file=findMp4(path.join(OUTPUT,job.id));if(code===0&&file){job.status='completed';job.output=file;job.videoUrl='/api/jobs/'+job.id+'/video';job.message='Vídeo concluído com sucesso.'}else{job.status='failed';job.message=code===0?'Motor terminou sem localizar o MP4.':'Motor terminou com código '+code+'.'}})}
+function api(req,res){if(req.method==='GET'&&req.url==='/api/health')return json(res,200,{status:'online',engine:'Automated Video Generator',mode:'remote-worker',no_api_key_tts:true});if(req.method==='POST'&&req.url==='/api/jobs')return body(req).then(d=>{if(!d.title||!d.script||d.script.length<10)return json(res,400,{error:'title e script são obrigatórios'});if([...jobs.values()].some(j=>j.status==='processing'))return json(res,409,{error:'Já existe uma produção em andamento. Aguarde terminar.'});const id=randomUUID(),j={id,title:String(d.title).slice(0,180),script:String(d.script).slice(0,5000),orientation:d.orientation==='landscape'?'landscape':'portrait',language:d.language||'portuguese',status:'queued',message:'Tarefa recebida.'};jobs.set(id,j);startGeneration(j);return json(res,202,{success:true,data:{jobId:id,title:j.title,status:'processing',statusUrl:'/api/jobs/'+id}})}).catch(()=>json(res,400,{error:'JSON inválido'}));const m=req.url?.match(/^\/api\/jobs\/([^/]+)(?:\/(video))?$/);if(m){const j=jobs.get(m[1]);if(!j)return json(res,404,{error:'Job não encontrado neste Worker.'});if(m[2]==='video'){if(!j.output||!fs.existsSync(j.output))return json(res,404,{error:'Vídeo ainda não disponível.'});res.writeHead(200,{'content-type':'video/mp4','access-control-allow-origin':'*','content-length':fs.statSync(j.output).size});return fs.createReadStream(j.output).pipe(res)}return json(res,200,{success:true,data:j})}return null}
+const upstream=spawn('npm',['run','dev','--','--host','127.0.0.1','--port',String(UPSTREAM_PORT)],{cwd:ROOT,env:process.env,stdio:'inherit'});
+const server=http.createServer(async(req,res)=>{if(req.method==='GET'&&req.url==='/'){res.writeHead(200,{'content-type':'text/html; charset=utf-8'});return res.end(PAGE)}if(req.url?.startsWith('/api/')){const handled=api(req,res);if(handled)return}try{const response=await fetch('http://127.0.0.1:'+UPSTREAM_PORT+(req.url||'/'),{method:req.method,headers:req.headers,body:['GET','HEAD'].includes(req.method)?undefined:req});res.writeHead(response.status,Object.fromEntries(response.headers));if(response.body)response.body.pipeTo(new WritableStream({write(c){res.write(Buffer.from(c))},close(){res.end()}})).catch(()=>res.end());else res.end()}catch(e){json(res,502,{error:'Upstream indisponível',detail:String(e)})}});
+server.listen(PUBLIC_PORT,'0.0.0.0',()=>console.log('VÍDEOCREATOR worker listening on 0.0.0.0:'+PUBLIC_PORT));
