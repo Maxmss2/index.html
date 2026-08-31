@@ -5,7 +5,7 @@ ENV PORT=10000
 ENV OPENVERSE_ENABLED=true
 ENV TTS_PROVIDER=edge-tts
 
-COPY proxy.mjs /app/videocreator-proxy.mjs
+COPY worker/proxy.mjs /app/videocreator-proxy.mjs
 
 EXPOSE 10000
 
