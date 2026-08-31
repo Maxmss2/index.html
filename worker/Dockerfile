@@ -5,6 +5,8 @@ ENV PORT=10000
 ENV OPENVERSE_ENABLED=true
 ENV TTS_PROVIDER=edge-tts
 
+COPY proxy.mjs /app/videocreator-proxy.mjs
+
 EXPOSE 10000
 
-CMD ["sh", "-c", "npm run dev -- --host 0.0.0.0 --port 10000"]
+CMD ["node", "/app/videocreator-proxy.mjs"]
